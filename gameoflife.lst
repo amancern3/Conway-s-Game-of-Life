@@ -1,0 +1,445 @@
+LINE ADDR CONTENTS SOURCE LINE
+  1.              ; https://github.com/amancern3/Game-of-Life.git
+  2.              
+  3.              
+  4.              .EQU KEYB_VECTOR,$FF8 ; keyboard interrupt vector
+  5.              .EQU @,$000 ; main program start address
+  6.              main:
+  7.  000 020E00  LDS# $E00 ; initialize stack to $E00
+  8.              
+  9.  001 000067  LDA# keyboardISR
+ 10.  002 042FF8  STA KEYB_VECTOR ; save isr routine address in vector
+ 11.              
+ 12.  003 0A2070  CLR generation ; start in generation 0
+ 13.              
+ 14.  004 00009E  LDA# array1 ; save ptr to array 1 in variable
+ 15.  005 04209C  STA arr1ptr
+ 16.  006 0000C8  LDA# array2 ; save ptr to array 2 in variable
+ 17.  007 04209D  STA arr2ptr
+ 18.              
+ 19.  008 08001A  PSH# startlen ; length of string
+ 20.  009 080073  PSH# startmsg ; string to print
+ 21.  00A 412E05  JSR $E05 ; prints starting message
+ 22.  00B 120002  ADS# 2 ; restore stack pointer
+ 23.  00C 412E06  JSR $E06 ; prints newline separation
+ 24.  00D 412E06  JSR $E06 ; prints newline separation
+ 25.              
+ 26.              ; Print grid
+ 27.  00E 08209C  PSH arr1ptr ; address of array of current grid
+ 28.  00F 0820F2  PSH rows ; number of rows
+ 29.  010 0820F3  PSH columns ; number of columns
+ 30.  011 082070  PSH generation
+ 31.  012 412045  JSR printGrid ; print grid
+ 32.  013 120004  ADS# 4 ; restore stack pointer
+ 33.              start:
+ 34.  014 080042  PSH# prmlen ; length of string
+ 35.  015 080080  PSH# prompt ; string to print
+ 36.  016 412E05  JSR $E05 ; prints prompt
+ 37.  017 120002  ADS# 2 ; restore stack pointer
+ 38.              
+ 39.  018 412E01  JSR $E01 ; read input
+ 40.  019 042071  STA ngen ; save input in ngen
+ 41.  01A 412E06  JSR $E06 ; prints newline separation
+ 42.              
+ 43.  01B 200000  CMA# 0
+ 44.  01C 482040  JEQ exit
+ 45.              generate:
+ 46.  01D 08209C  PSH arr1ptr ; address of array of current grid
+ 47.  01E 0820F2  PSH rows ; number of rows
+ 48.  01F 0820F3  PSH columns ; number of columns
+ 49.  020 08209D  PSH arr2ptr ; address of array of new grid
+ 50.  021 412400  JSR nextGen ; calculate next grid
+ 51.  022 120004  ADS# 4 ; restore stack pointer
+ 52.              
+ 53.  023 1B2070  INC generation
+ 54.              
+ 55.              ; Print grid
+ 56.  024 08209D  PSH arr2ptr ; address of array of current grid
+ 57.  025 0820F2  PSH rows ; number of rows
+ 58.  026 0820F3  PSH columns ; number of columns
+ 59.  027 082070  PSH generation
+ 60.  028 412045  JSR printGrid ; print grid
+ 61.  029 120004  ADS# 4 ; restore stack pointer
+ 62.              
+ 63.              ; swap pointers
+ 64.  02A 00209C  LDA arr1ptr
+ 65.  02B 01209D  LDX arr2ptr
+ 66.  02C 04209D  STA arr2ptr
+ 67.  02D 05209C  STX arr1ptr
+ 68.              
+ 69.  02E 0A209B  CLR endwait ; clear keyboard wait flag
+ 70.  02F 000080  LDA# $80 ; enable keyboard interrupts
+ 71.  030 712000  OUTB $0
+ 72.  031 FFF032  SIE ; enable interrupts
+ 73.  032 002072  LDA count ; set count for initializing timer
+ 74.  033 732031  OUTW $31
+ 75.  034 000050  LDA# $50 ; disable timer interrupt, clear ready bit, load and start timer
+ 76.  035 712030  OUTB $030
+ 77.              waitTimer:
+ 78.  036 702030  INB $030 ; read status register
+ 79.  037 300080  AND# $80 ; see if count is complete
+ 80.  038 49203C  JNE countdone ; if so, exit loop
+ 81.  039 00209B  LDA endwait ; see if keyboard was pressed
+ 82.  03A 200001  CMA# 1
+ 83.  03B 492036  JNE waitTimer ; if not, keep waiting
+ 84.              countdone:
+ 85.  03C FFF033  CIE ; disable interrupts
+ 86.              
+ 87.  03D 1C2071  DEC ngen ; decrement number of generations to print
+ 88.  03E 49201D  JNE generate ; repeat if not zero
+ 89.              
+ 90.  03F 402014  JMP start ; start over
+ 91.              exit:
+ 92.  040 08000F  PSH# endlen ; length of string
+ 93.  041 080096  PSH# endmsg ; string to print
+ 94.  042 412E05  JSR $E05 ; prints end of program
+ 95.  043 120002  ADS# 2 ; restore stack pointer
+ 96.              
+ 97.  044 FFFFFF  HLT ; terminate program
+ 98.              
+ 99.              ; printGrid subroutine
+100.              .EQU grid,5
+101.              .EQU nr,4
+102.              .EQU nc,3
+103.              .EQU gen,2
+104.              printGrid:
+105.  045 FFF012  PSHF ; push FP on stack
+106.  046 FFF008  TSF ; load stack pointer in FP
+107.              
+108.  047 08000C  PSH# genlen ; length of string
+109.  048 08007C  PSH# genmsg ; string to print
+110.  049 412E05  JSR $E05 ; prints generation
+111.  04A 120002  ADS# 2 ; restore stack pointer
+112.  04B 003002  LDA ! gen
+113.  04C 412E00  JSR $E00 ; prints the generation number
+114.              
+115.  04D 010000  LDX# 0 ; start at position 0 in array
+116.  04E 0A206D  CLR Y ; initialize row index to zero
+117.              forY:
+118.  04F 0A206E  CLR X ; initialize column index to zero
+119.              forX:
+120.  050 009005  LDA& ! grid ; load value from array
+121.              
+122.  051 200000  CMA# 0 ; see if the cell was dead
+123.  052 482056  JEQ cell0
+124.              cell1:
+125.  053 00002A  LDA# '*' ; char to print
+126.  054 412E08  JSR $E08 ; prints a star
+127.  055 402058  JMP advance
+128.              cell0:
+129.  056 00002E  LDA# '.' ; char to print
+130.  057 412E08  JSR $E08 ; prints a dot
+131.              advance:
+132.  058 000020  LDA# ' ' ; char to print
+133.  059 412E08  JSR $E08 ; prints a space
+134.              
+135.  05A 110001  ADX# 1 ; increment array position
+136.              
+137.  05B 1B206E  INC X ; increment column index
+138.  05C 00206E  LDA X ; load index in ACC
+139.  05D 203003  CMA ! nc ; compare with number of columns
+140.  05E 4A2050  JLT forX ; if I < nColumns, continue loop
+141.              
+142.  05F 412E06  JSR $E06 ; print carriage return
+143.              
+144.  060 1B206D  INC Y ; increment row index
+145.  061 00206D  LDA Y ; load index in ACC
+146.  062 203004  CMA ! nr ; compare with number of rows
+147.  063 4A204F  JLT forY ; if I < nRows, continue loop
+148.              
+149.  064 412E06  JSR $E06 ; print carriage return
+150.              
+151.  065 FFF015  POPF ; restore FP from stack
+152.  066 FFF040  RTN ; return to caller
+153.              
+154.              ; Keyboard Interrupt Service Routine
+155.              keyboardISR:
+156.  067 FFF010  PSHA ; save A in stack
+157.  068 1B209B  INC endwait ; set endwait to 1 to terminate wait
+158.  069 000040  LDA# $40 ; disable keyboard interrupt and flush buffer
+159.  06A 712000  OUTB $0
+160.  06B FFF013  POPA ; recover A
+161.  06C FFF041  IRTN
+162.              
+163.              ; Variables used in main
+164.  06D 000000  Y: .word 0 ; row index
+165.  06E 000000  X: .word 0 ; column index
+166.  06F 000000  PTR: .word 0
+167.  070 000000  generation: .word 0
+168.  071 000000  ngen: .word 0
+169.  072 0F4240  count: .word 1000000
+170.  073 486572  startmsg: .char 'Here is the starting grid:',startlen
+      074 652069
+      075 732074
+      076 686520
+      077 737461
+      078 727469
+      079 6E6720
+      07A 677269
+      07B 643A20
+171.  07C 47656E  genmsg: .char 'Generation: ',genlen
+      07D 657261
+      07E 74696F
+      07F 6E3A20
+172.  080 486F77  prompt: .char 'How many new generations would you like to print (enter 0 to end)?',prmlen
+      081 206D61
+      082 6E7920
+      083 6E6577
+      084 206765
+      085 6E6572
+      086 617469
+      087 6F6E73
+      088 20776F
+      089 756C64
+      08A 20796F
+      08B 75206C
+      08C 696B65
+      08D 20746F
+      08E 207072
+      08F 696E74
+      090 202865
+      091 6E7465
+      092 722030
+      093 20746F
+      094 20656E
+      095 64293F
+173.  096 456E64  endmsg: .char 'End of program.',endlen
+      097 206F66
+      098 207072
+      099 6F6772
+      09A 616D2E
+174.  09B 000000  endwait: .word 0
+175.  09C 000000  arr1ptr: .word 0
+176.  09D 000000  arr2ptr: .word 0
+177.  09E 000000  array1: .word 0
+178.  09F 000000  .word 0
+179.  0A0 000000  .word 0
+180.  0A1 000000  .word 0
+181.  0A2 000000  .word 0
+182.  0A3 000000  .word 0
+183.  0A4 000000  .word 0
+184.              
+185.  0A5 000000  .word 0
+186.  0A6 000000  .word 0
+187.  0A7 000001  .word 1
+188.  0A8 000000  .word 0
+189.  0A9 000000  .word 0
+190.  0AA 000000  .word 0
+191.  0AB 000000  .word 0
+192.              
+193.  0AC 000000  .word 0
+194.  0AD 000000  .word 0
+195.  0AE 000000  .word 0
+196.  0AF 000001  .word 1
+197.  0B0 000000  .word 0
+198.  0B1 000000  .word 0
+199.  0B2 000000  .word 0
+200.              
+201.  0B3 000000  .word 0
+202.  0B4 000001  .word 1
+203.  0B5 000001  .word 1
+204.  0B6 000001  .word 1
+205.  0B7 000000  .word 0
+206.  0B8 000000  .word 0
+207.  0B9 000000  .word 0
+208.              
+209.  0BA 000000  .word 0
+210.  0BB 000000  .word 0
+211.  0BC 000000  .word 0
+212.  0BD 000000  .word 0
+213.  0BE 000000  .word 0
+214.  0BF 000000  .word 0
+215.  0C0 000000  .word 0
+216.              
+217.  0C1 000000  .word 0
+218.  0C2 000000  .word 0
+219.  0C3 000000  .word 0
+220.  0C4 000000  .word 0
+221.  0C5 000000  .word 0
+222.  0C6 000000  .word 0
+223.  0C7 000000  .word 0
+224.              
+225.  0C8 000000  array2: .blkw 42,0
+226.  0F2 000006  rows: .word 6
+227.  0F3 000007  columns: .word 7
+228.              
+229.              ; NextGen subroutine
+230.              .EQU @,$400 ; subroutine start address
+231.              .EQU curGrid,5
+232.              .EQU nRows,4
+233.              .EQU nColumns,3
+234.              .EQU nextGrid,2
+235.              nextGen:
+236.  400 FFF012  PSHF ; push FP on stack
+237.  401 FFF008  TSF ; load stack pointer in FP
+238.              
+239.  402 0A246D  CLR I ; initialize row index to zero
+240.              forRow:
+241.  403 0A246E  CLR J ; initialize column index to zero
+242.              forCol:
+243.  404 00246D  LDA I ; load current row
+244.  405 183003  MUL ! nColumns ; multiply row by ncolumns
+245.  406 10246E  ADA J ; add column to get position of current cell
+246.  407 04246F  STA pos ; save position in pos
+247.              
+248.  408 0A2470  CLR neighbors ; start with zero neighbors
+249.              
+250.  409 00246D  LDA I
+251.  40A 200000  CMA# 0 ; see if row == 0
+252.  40B 482423  JEQ midleft ; if so, test middle neighbors
+253.              uptop:
+254.  40C 00246E  LDA J
+255.  40D 200000  CMA# 0 ; see if col == 0
+256.  40E 482415  JEQ upmiddle ; if so, test up middle neighbor
+257.              
+258.  40F 01246F  LDX pos ; get position
+259.  410 153003  SBX ! nColumns ; subtract ncolumns to get position in previous row
+260.  411 150001  SBX# 1 ; subtract 1 to get position at top left
+261.  412 009005  LDA& ! curGrid ; load value from array
+262.  413 102470  ADA neighbors ; add value to number of neighbors
+263.  414 042470  STA neighbors ; update number of neighbors
+264.              upmiddle:
+265.  415 01246F  LDX pos ; get position
+266.  416 153003  SBX ! nColumns ; subtract ncolumns to get position in previous row
+267.  417 009005  LDA& ! curGrid ; load value from array
+268.  418 102470  ADA neighbors ; add value to number of neighbors
+269.  419 042470  STA neighbors ; update number of neighbors
+270.              upright:
+271.  41A 00246E  LDA J
+272.  41B 203003  CMA ! nColumns ; see if col >= n columns
+273.  41C 4B2423  JGE midleft ; if so, test midleft neighbor
+274.              
+275.  41D 01246F  LDX pos ; get position
+276.  41E 153003  SBX ! nColumns ; subtract ncolumns to get position in previous row
+277.  41F 110001  ADX# 1 ; get position at top right
+278.  420 009005  LDA& ! curGrid ; load value from array
+279.  421 102470  ADA neighbors ; add value to number of neighbors
+280.  422 042470  STA neighbors ; update number of neighbors
+281.              midleft:
+282.  423 00246E  LDA J
+283.  424 200000  CMA# 0 ; see if col == 0
+284.  425 48242B  JEQ midright ; if so, test middle right neighbor
+285.              
+286.  426 01246F  LDX pos ; get position
+287.  427 150001  SBX# 1 ; get position at left
+288.  428 009005  LDA& ! curGrid ; load value from array
+289.  429 102470  ADA neighbors ; add value to number of neighbors
+290.  42A 042470  STA neighbors ; update number of neighbors
+291.              midright:
+292.  42B 00246E  LDA J
+293.  42C 203003  CMA ! nColumns ; see if col >= n columns
+294.  42D 4B2433  JGE down ; if so, test down neightbors
+295.              
+296.  42E 01246F  LDX pos ; get position
+297.  42F 110001  ADX# 1 ; get position at right
+298.  430 009005  LDA& ! curGrid ; load value from array
+299.  431 102470  ADA neighbors ; add value to number of neighbors
+300.  432 042470  STA neighbors ; update number of neighbors
+301.              
+302.              down:
+303.  433 00246D  LDA I
+304.  434 100001  ADA# 1
+305.  435 203004  CMA ! nRows ; see if row + 1 >= n rows
+306.  436 4B244E  JGE updatecell ; if so, update cell
+307.              
+308.              dnleft:
+309.  437 00246E  LDA J
+310.  438 200000  CMA# 0 ; see if col == 0
+311.  439 482440  JEQ dnmiddle ; if so, test down middle neighbor
+312.              
+313.  43A 01246F  LDX pos ; get position
+314.  43B 113003  ADX ! nColumns ; add ncolumns to get position in next row
+315.  43C 150001  SBX# 1 ; subtract 1 to get position at down left
+316.  43D 009005  LDA& ! curGrid ; load value from array
+317.  43E 102470  ADA neighbors ; add value to number of neighbors
+318.  43F 042470  STA neighbors ; update number of neighbors
+319.              dnmiddle:
+320.  440 01246F  LDX pos ; get position
+321.  441 113003  ADX ! nColumns ; add ncolumns to get position in next row
+322.  442 009005  LDA& ! curGrid ; load value from array
+323.  443 102470  ADA neighbors ; add value to number of neighbors
+324.  444 042470  STA neighbors ; update number of neighbors
+325.              dnright:
+326.  445 00246E  LDA J
+327.  446 203003  CMA ! nColumns ; see if col >= n columns
+328.  447 4B244E  JGE updatecell ; if so, update cell
+329.              
+330.  448 01246F  LDX pos ; get position
+331.  449 113003  ADX ! nColumns ; add ncolumns to get position in next row
+332.  44A 110001  ADX# 1 ; get position at down right
+333.  44B 009005  LDA& ! curGrid ; load value from array
+334.  44C 102470  ADA neighbors ; add value to number of neighbors
+335.  44D 042470  STA neighbors ; update number of neighbors
+336.              
+337.              updatecell:
+338.  44E 01246F  LDX pos ; get position
+339.  44F 009005  LDA& ! curGrid ; load value from array
+340.  450 049002  STA& ! nextGrid ; copy cell to next grid
+341.              
+342.  451 200000  CMA# 0 ; see if the cell was dead
+343.  452 48245E  JEQ dead
+344.              alive:
+345.  453 002470  LDA neighbors ; load number of neighbors of current cell
+346.  454 200001  CMA# 1 ; see if there are 1 or less neighbors
+347.  455 4D2459  JGT testoc ; if there are more than 1, test overcrowding
+348.  456 000000  LDA# 0 ; else, clear A to kill cell
+349.  457 049002  STA& ! nextGrid ; set cell as dead in next grid
+350.  458 402463  JMP next ; continue the loop
+351.              testoc:
+352.  459 200004  CMA# 4 ; see if there are 4 or more neighbors
+353.  45A 4A2463  JLT next ; if there are less than 4, go to next cell
+354.  45B 000000  LDA# 0 ; else, clear A to kill cell
+355.  45C 049002  STA& ! nextGrid ; set cell as dead in next grid
+356.  45D 402463  JMP next ; continue the loop
+357.              dead:
+358.  45E 002470  LDA neighbors ; load number of neighbors of current cell
+359.  45F 200003  CMA# 3 ; see if there are exactly 3 neighbors
+360.  460 492463  JNE next ; if there are not 3 neighbors, go to next cell
+361.  461 000001  LDA# 1 ; else, set A to make cell alive
+362.  462 049002  STA& ! nextGrid ; set cell as alive in next grid
+363.              next:
+364.  463 1B246E  INC J ; increment column index
+365.  464 00246E  LDA J ; load index in ACC
+366.  465 203003  CMA ! nColumns ; compare with number of columns
+367.  466 4A2404  JLT forCol ; if I < nColumns, continue loop
+368.              
+369.  467 1B246D  INC I ; increment row index
+370.  468 00246D  LDA I ; load index in ACC
+371.  469 203004  CMA ! nRows ; compare with number of rows
+372.  46A 4A2403  JLT forRow ; if I < nRows, continue loop
+373.              
+374.  46B FFF015  POPF ; restore FP from stack
+375.  46C FFF040  RTN ; return to caller
+376.              
+377.              ; Variables for subroutine
+378.  46D 000000  I: .word 0 ; row index
+379.  46E 000000  J: .word 0 ; column index
+380.  46F 000000  pos: .word 0 ; current position in array
+381.  470 000000  neighbors: .word 0 ; number of neighbors for a cell
+382.              
+383.              .END
+
+                     SYMBOL TABLE CONTENTS
+
+000058 = ADVANCE         000453 = ALIVE           00009C = ARR1PTR         
+00009D = ARR2PTR         00009E = ARRAY1          0000C8 = ARRAY2          
+000056 = CELL0           000053 = CELL1           0000F3 = COLUMNS         
+000072 = COUNT           00003C = COUNTDONE       000005 = CURGRID         
+00045E = DEAD            000437 = DNLEFT          000440 = DNMIDDLE        
+000445 = DNRIGHT         000433 = DOWN            00000F = ENDLEN          
+000096 = ENDMSG          00009B = ENDWAIT         000040 = EXIT            
+000404 = FORCOL          000403 = FORROW          000050 = FORX            
+00004F = FORY            000002 = GEN             00001D = GENERATE        
+000070 = GENERATION      00000C = GENLEN          00007C = GENMSG          
+000005 = GRID            00046D = I               00046E = J               
+000067 = KEYBOARDISR     000FF8 = KEYB_VECTOR     000000 = MAIN            
+000423 = MIDLEFT         00042B = MIDRIGHT        000003 = NC              
+000003 = NCOLUMNS        000470 = NEIGHBORS       000463 = NEXT            
+000400 = NEXTGEN         000002 = NEXTGRID        000071 = NGEN            
+000004 = NR              000004 = NROWS           00046F = POS             
+000045 = PRINTGRID       000042 = PRMLEN          000080 = PROMPT          
+00006F = PTR             0000F2 = ROWS            000014 = START           
+00001A = STARTLEN        000073 = STARTMSG        000459 = TESTOC          
+00044E = UPDATECELL      000415 = UPMIDDLE        00041A = UPRIGHT         
+00040C = UPTOP           000036 = WAITTIMER       00006E = X               
+00006D = Y               
